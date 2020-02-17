@@ -87,9 +87,6 @@ typedef unsigned int __u32;   // 1225 ham
 #define SERVER_PORT_SSL	443
 #endif
 #include "bcmnvram_f.h"
-#ifdef RTCONFIG_TCODE
-#include "tcode.h"
-#endif
 
 /* A multi-family sockaddr. */
 typedef union {
@@ -218,9 +215,6 @@ struct language_table language_tables[] = {
 	{NULL, NULL}
 };
 
-int check_lang_support(char *lang);
-int change_preferred_lang();
-int get_lang_num();
 #endif //TRANSLATE_ON_FLY
 
 /* Forwards. */
@@ -394,6 +388,7 @@ page_default_redirect(int fromapp_flag, char* url)
 void
 send_login_page(int fromapp_flag, int error_status, char* url, char* file, int lock_time, int logintry)
 {
+	HTTPD_DBG("error_status = %d\n", error_status);
 	char inviteCode[256]={0};
 	char buf[128] = {0};
 	//char url_tmp[64]={0};
@@ -818,7 +813,6 @@ int wave_handle_flag(char *url)
 }
 #endif
 
-static int auto_set_lang = 0; //Prevent to check language every request
 static void
 handle_request(void)
 {
@@ -881,7 +875,7 @@ handle_request(void)
 		}
 #ifdef TRANSLATE_ON_FLY
 		else if ( strncasecmp( cur, "Accept-Language:", 16) == 0 ) {
-			if(change_preferred_lang()){
+			if(change_preferred_lang(0)){
 				char *p;
 				struct language_table *pLang;
 				char lang_buf[256];
@@ -932,7 +926,7 @@ handle_request(void)
 					nvram_set("preferred_lang", Accept_Language);
 				}
 
-				auto_set_lang = 1; //Prevent to check language every request
+				change_preferred_lang(1);
 			}
 
 			#ifdef RTCONFIG_DSL_TCLINUX
@@ -972,6 +966,7 @@ handle_request(void)
 			cp += strspn( cp, " \t" );
 			useragent = cp;
 			cur = cp + strlen(cp) + 1;
+			HTTPD_DBG("useragent: %s\n", useragent);
 		}
 		else if ( strncasecmp( cur, "Cookie:", 7 ) == 0 )
 		{
@@ -1036,7 +1031,7 @@ handle_request(void)
 	}
 
 //2008.08 magic{
-	if (file[0] == '\0' || file[len-1] == '/'){
+	if (file[0] == '\0' || (index(file, '?') == NULL && file[len-1] == '/')){
 		if (is_firsttime()
 #ifdef RTCONFIG_FINDASUS
 		    && !isDeviceDiscovery
@@ -1052,7 +1047,6 @@ handle_request(void)
 			file = INDEXPAGE;
 	}
 
-// 2007.11 James. {
 	char *query;
 	int file_len;
 
@@ -1069,7 +1063,6 @@ handle_request(void)
 	{
 		strncpy(url, file, sizeof(url)-1);
 	}
-// 2007.11 James. }
 
 	if( (strstr(url, ".asp") || strstr(url, ".htm")) && !strstr(url, "update_networkmapd.asp") && !strstr(url, "update_clients.asp") && !strstr(url, "update_customList.asp") ) {
 		memset(current_page_name, 0, sizeof(current_page_name));
@@ -1112,6 +1105,7 @@ handle_request(void)
 // _dprintf("[httpd] file: %s\n", file);
         }
 #endif
+        HTTPD_DBG("file = %s\n", file);
 	mime_exception = 0;
 	do_referer = 0;
 
@@ -1222,6 +1216,7 @@ handle_request(void)
 				else {
 					if(do_referer&CHECK_REFERER){
 						referer_result = referer_check(referer, fromapp);
+						HTTPD_DBG("referer_result = %d\n", referer_result);
 						if(referer_result != 0){
 							if(strcasecmp(method, "post") == 0 && handler->input)	//response post request
 								while (cl--) (void)fgetc(conn_fp);
@@ -1233,6 +1228,7 @@ handle_request(void)
 					}
 					handler->auth(auth_userid, auth_passwd, auth_realm);
 					auth_result = auth_check(auth_realm, authorization, url, file, cookies, fromapp);
+					HTTPD_DBG("auth_result = %d\n", auth_result);
 					if (auth_result != 0)
 					{
 						if(strcasecmp(method, "post") == 0 && handler->input)	//response post request
@@ -1524,141 +1520,6 @@ char *config_model_name(char *source, char *find,  char *rep){
  *     <0:	invalid parameter.
  *     >0:	lang can be supported.
  */
-int check_lang_support(char *lang)
-{
-	struct tcode_lang_s *p_lang_list = tcode_lang_list;
-	char tcode[7], *odmpid;
-	int model;
-	int ret = 1;
-
-	model = get_model();
-	odmpid = nvram_safe_get("odmpid");
-
-#ifdef RTCONFIG_TCODE
-	if(!find_word(nvram_safe_get("rc_support"), "tcode") || snprintf(tcode, sizeof(tcode), "%s", nvram_safe_get("territory_code")) <= 0)
-		return 1;
-
-	for(; p_lang_list->model != 0; p_lang_list++) {
-		/* specific model */
-		if( p_lang_list->model == model &&
-			(!p_lang_list->odmpid || !strcmp(p_lang_list->odmpid, odmpid)) &&
-			(!strncmp(p_lang_list->tcode, tcode, 2) || !strcmp(p_lang_list->tcode, "GLOBAL"))){
-			if(strstr(p_lang_list->support_lang, lang))
-				ret = 1;
-			else
-				ret = 0;
-			break;
-		}
-		/* generic models */
-		else if(p_lang_list->model == MODEL_GENERIC &&
-				(!strncmp(p_lang_list->tcode, tcode, 2) || !strcmp(p_lang_list->tcode, "GLOBAL"))){
-			if(strstr(p_lang_list->support_lang, lang))
-				ret = 1;
-			else
-				ret = 0;
-			break;
-		}
-	}
-#endif
-
-	return ret;
-}
-
-int change_preferred_lang()
-{
-	struct tcode_lang_s *p_lang_list = tcode_lang_list;
-	char tcode[7], *odmpid;
-	int model;
-	int ret = 1;
-
-	model = get_model();
-	odmpid = nvram_safe_get("odmpid");
-
-	if(is_firsttime() && !auto_set_lang){
-#ifdef RTCONFIG_TCODE
-		if(!find_word(nvram_safe_get("rc_support"), "tcode") || snprintf(tcode, sizeof(tcode), "%s", nvram_safe_get("territory_code")) <= 0)
-			return 1;
-
-		for(; p_lang_list->model != 0; p_lang_list++) {
-			/* specific model */
-			if( p_lang_list->model == model &&
-				(!p_lang_list->odmpid || !strcmp(p_lang_list->odmpid, odmpid)) &&
-				(!strncmp(p_lang_list->tcode, tcode, 2) || !strcmp(p_lang_list->tcode, "GLOBAL"))){
-				if(p_lang_list->auto_change)
-					ret = 1;
-				else
-					ret = 0;
-				break;
-			}
-			/* generic models */
-			else if(p_lang_list->model == MODEL_GENERIC &&
-					(!strncmp(p_lang_list->tcode, tcode, 2) || !strcmp(p_lang_list->tcode, "GLOBAL"))){
-				if(p_lang_list->auto_change)
-					ret = 1;
-				else
-					ret = 0;
-				break;
-			}
-		}
-#endif
-	}
-	else
-		ret = 0;
-
-	return ret;
-}
-
-int get_lang_num(){
-	int num = 0;
-#ifdef RTCONFIG_TCODE
-	struct tcode_lang_s *p_lang_list = tcode_lang_list;
-	char tcode[7], *odmpid;
-	int model;
-	char *delim = " ";
-	char *lang_list, *p, *substr = NULL;
-
-	model = get_model();
-	odmpid = nvram_safe_get("odmpid");
-
-	if(!find_word(nvram_safe_get("rc_support"), "tcode") ||
-		snprintf(tcode, sizeof(tcode), "%s", nvram_safe_get("territory_code")) <= 0 ||
-		!strcmp(nvram_safe_get(ATE_FACTORY_MODE_STR()), "1"))
-		return 9999;
-
-		for(; p_lang_list->model != 0; p_lang_list++) {
-			/* specific model */
-			if( p_lang_list->model == model &&
-				(!p_lang_list->odmpid || !strcmp(p_lang_list->odmpid, odmpid)) &&
-				(!strncmp(p_lang_list->tcode, tcode, 2) || !strcmp(p_lang_list->tcode, "GLOBAL"))){
-				p = lang_list = strdup(p_lang_list->support_lang);
-				substr = strsep(&p, delim);
-				while(substr){
-					num++;
-					substr = strsep(&p, delim);
-				}
-				free(lang_list);
-				break;
-			}
-			/* generic models */
-			else if(p_lang_list->model == MODEL_GENERIC &&
-					(!strncmp(p_lang_list->tcode, tcode, 2) || !strcmp(p_lang_list->tcode, "GLOBAL"))){
-				p = lang_list = strdup(p_lang_list->support_lang);
-				substr = strsep(&p, delim);
-				while(substr){
-					num++;
-					substr = strsep(&p, delim);
-				}
-				free(lang_list);
-				break;
-			}
-		}
-#endif
-
-	return num;
-
-}
-
-
 
 #ifdef RTCONFIG_AUTODICT
 int
@@ -2049,6 +1910,10 @@ int main(int argc, char **argv)
 	do_ssl = 0; // default
 	char log_filename[128] = {0};
 
+#if defined(RTCONFIG_UIDEBUG)
+	eval("touch", HTTPD_DEBUG);
+#endif
+
 #if defined(RTCONFIG_SW_HW_AUTH)
 	//if(!httpd_sw_hw_check()) return 0;
 #endif
@@ -2107,6 +1972,7 @@ int main(int argc, char **argv)
 	/* Ignore broken pipes */
 	signal(SIGPIPE, SIG_IGN);
 	signal(SIGCHLD, reapchild);	// 0527 add
+	signal(SIGUSR1, update_wlan_log);
 
 #ifdef RTCONFIG_HTTPS
 	//if (do_ssl)
@@ -2238,6 +2104,11 @@ int main(int argc, char **argv)
 				}
 
 				http_login_cache(&item->usa);
+#if defined(RTCONFIG_UIDEBUG)
+				struct in_addr req_ip;
+				req_ip.s_addr = login_ip_tmp;
+				HTTPD_DBG("Log ip address: %s\n", inet_ntoa(req_ip));
+#endif
 				handle_request();
 				fflush(conn_fp);
 #ifdef RTCONFIG_HTTPS

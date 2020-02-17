@@ -370,6 +370,7 @@ void __noreturn die(const char *str, struct pt_regs *regs)
 	unsigned long dvpret;
 #endif /* CONFIG_MIPS_MT_SMTC */
 
+	enable_oopsbuf(1);
 	oops_enter();
 
 	if (notify_die(DIE_OOPS, str, regs, 0, regs_to_trapnr(regs),

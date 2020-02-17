@@ -2306,7 +2306,7 @@ int start_cap(int c)
 #if defined(RTCONFIG_LP5523)
 			lp55xx_leds_proc(LP55XX_GREENERY_LEDS, LP55XX_WIFI_PARAM_SYNC);
 #elif defined(MAPAC1750)
-			set_rgbled(RGBLED_BLUE_3ON1OFF);
+			set_rgbled(RGBLED_GREEN_3ON1OFF);
 #endif
 		} else
 		{
@@ -3546,10 +3546,10 @@ static void eth_mon_pre_action(int do_poweroff)
 	if (get_role()) // RE
 		all_portmask = isolated_vlan_create(0, lan_device);
 	else {
-#if defined(MAPAC1300) || defined(MAPAC2200) || defined(VZWAC1300)
+#if defined(MAPAC1300) || defined(MAPAC2200) || defined(VZWAC1300) || defined(MAPAC1750)
 		if (IPTV_ports_cnt() >= 2)
 			return; /* No ETH backhaul needed */
-#endif	/* MAPAC1300 || MAPAC2200 || VZWAC1300 */
+#endif
 
 		all_portmask = get_all_portmask();
 		/* we don't handle CAP's WAN port */
@@ -3641,10 +3641,10 @@ void start_eth_bh_mon(void)
 		ifconfig("ath001", 0, NULL, NULL);
 		ifconfig("ath001", IFUP, NULL, NULL);
 	}
-#if defined(MAPAC1300) || defined(MAPAC2200) || defined(VZWAC1300)
+#if defined(MAPAC1300) || defined(MAPAC2200) || defined(VZWAC1300) || defined(MAPAC1750)
 	if ( !role && IPTV_ports_cnt() >= 2)
 		return; /* No ETH backhaul needed */
-#endif	/* MAPAC1300 || MAPAC2200 || VZWAC1300 */
+#endif
 	if (1)
 	{
 		pid_t mypid, *pid_list;

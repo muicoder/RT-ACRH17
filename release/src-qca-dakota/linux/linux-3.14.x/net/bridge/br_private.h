@@ -739,9 +739,10 @@ BR_HOOK(uint8_t pf, unsigned int hook, struct sk_buff *skb,
 	struct net_device *in, struct net_device *out,
 	int (*okfn)(struct sk_buff *))
 {
+#ifdef CONFIG_BRIDGE_NETFILTER
 	if (!br_netfilter_run_hooks())
 		return okfn(skb);
-
+#endif
 	return NF_HOOK(pf, hook, skb, in, out, okfn);
 }
 

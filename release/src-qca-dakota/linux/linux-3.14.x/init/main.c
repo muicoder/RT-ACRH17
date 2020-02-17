@@ -564,6 +564,10 @@ asmlinkage void __init start_kernel(void)
 	trap_init();
 	mm_init();
 
+#ifdef CONFIG_DUMP_PREV_OOPS_MSG
+	prepare_and_dump_previous_oops();
+#endif
+
 	/*
 	 * Set up the scheduler prior starting any interrupts (such as the
 	 * timer interrupt). Full topology setup happens at smp_init()

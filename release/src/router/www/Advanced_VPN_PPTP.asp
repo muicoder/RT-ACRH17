@@ -77,8 +77,8 @@ function initial(){
 	var pptpd_clients = '<% nvram_get("pptpd_clients"); %>';
 	
 	show_menu();
-	// https://www.asus.com/US/support/FAQ/1033906
-	httpApi.faqURL("faq", "1033906", "https://www.asus.com", "/support/FAQ/");
+	httpApi.faqURL("114892", function(url){document.getElementById("faq").href=url;});
+	httpApi.faqURL("1033906", function(url){document.getElementById("faq_port_forwarding").href=url;});
 
 	formShowAndHide(document.form.pptpd_enable.value, "pptpd");	
 	if(wans_mode == "lb"){
@@ -949,7 +949,7 @@ function update_pptp_client_status(){
 											</thead>								
 											<tr>
 												<th><#PPPConnection_x_WANLink_itemname#></th>
-												<th><#HSDPAConfig_Username_itemname#></th>
+												<th><#Username#></th>
 												<th><#HSDPAConfig_Password_itemname#></th>
 												<th><#list_add_delete#></th>
 												<th><#pvccfg_edit#></th>

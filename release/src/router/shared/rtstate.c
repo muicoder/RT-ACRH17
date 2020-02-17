@@ -1096,6 +1096,8 @@ char *get_default_ssid(int unit, int subunit)
 #if defined(RTAC58U)
 		if (!strncmp(nvram_safe_get("territory_code"), "SP", 2))
 			sprintf((char *)ssidbase, "Spirit_%02X", mac_binary[5]);
+		else if (!strncmp(nvram_safe_get("territory_code"), "CX", 2))
+			sprintf((char *)ssidbase, "Stuff-Fibre_%02X", mac_binary[5]);
 		else
 #endif
 			sprintf((char *)ssidbase, "%s_%02X", SSID_PREFIX, mac_binary[5]);
@@ -1107,6 +1109,7 @@ char *get_default_ssid(int unit, int subunit)
 #endif
 
 	strlcpy(ssid, ssidbase, sizeof(ssid));
+#if defined(RTCONFIG_NEWSSID_REV2) && !defined(RTCONFIG_NEWSSID_REV4)
 #if !defined(RTCONFIG_SINGLE_SSID)	/* including RTCONFIG_NEWSSID_REV2 */
 	switch (unit) {
 	case WL_2G_BAND:
@@ -1134,6 +1137,7 @@ char *get_default_ssid(int unit, int subunit)
 		dbg("%s: Unknown wl_unit (%d)\n", __func__, unit);
 		strlcat(ssid, "_UNKNOWN", sizeof(ssid));
 	}
+#endif
 #endif
 
 	/* Handle guest network SSID. */

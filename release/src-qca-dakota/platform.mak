@@ -49,6 +49,8 @@ define platformRouterOptions
 		echo "RTCONFIG_QCA_ARM=y" >>$(1); \
 		sed -i "/RTCONFIG_32BYTES_ODMPID/d" $(1); \
 		echo "RTCONFIG_32BYTES_ODMPID=y" >>$(1); \
+		sed -i "/RTCONFIG_QCA_BIGRATE_WIFI\>/d" $(1); \
+		echo "RTCONFIG_QCA_BIGRATE_WIFI=y" >>$(1); \
 		if [ "$(RT4GAC53U)" = "y" ]; then \
 			sed -i "/RTCONFIG_LEDS_CLASS/d" $(1); \
 			echo "RTCONFIG_LEDS_CLASS=y" >>$(1); \
@@ -119,10 +121,6 @@ define platformKernelConfig
 	if [ "$(QCA)" = "y" ]; then \
 		sed -i "/CONFIG_RTAC55U/d" $(1); \
                 echo "# CONFIG_RTAC55U is not set" >>$(1); \
-		if [ "$(MAPAC1300)" = "y" ] || [ "$(MAPAC2200)" = "y" ] || [ "$(VZWAC1300)" = "y" ]; then \
-			sed -i "/CONFIG_BRIDGE_NETFILTER/d" $(1); \
-			echo "CONFIG_BRIDGE_NETFILTER=y" >>$(1); \
-		fi; \
 		if [ "$(CONFIG_LINUX30)" = "y" ]; then \
 			if [ "$(BOOT_FLASH_TYPE)" = "SPI" ] ; then \
 				sed -i "/CONFIG_MTD_MSM_NAND\>/d" $(1); \
@@ -486,8 +484,8 @@ define platformKernelConfig
 		fi; \
 		if [ "$(DUMP_OOPS_MSG)" = "y" ]; then \
 			echo "CONFIG_DUMP_PREV_OOPS_MSG=y" >>$(1); \
-			echo "CONFIG_DUMP_PREV_OOPS_MSG_BUF_ADDR=0x45300000" >>$(1); \
-			echo "CONFIG_DUMP_PREV_OOPS_MSG_BUF_LEN=0x2000" >>$(1); \
+			echo "CONFIG_DUMP_PREV_OOPS_MSG_BUF_ADDR=0x83ff0000" >>$(1); \
+			echo "CONFIG_DUMP_PREV_OOPS_MSG_BUF_LEN=0x3000" >>$(1); \
 		fi; \
 	fi; \
 	if [ "$(DUALWAN)" = "y" ]; then \

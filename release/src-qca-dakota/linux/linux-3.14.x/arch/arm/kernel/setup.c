@@ -908,6 +908,11 @@ void __init setup_arch(char **cmdline_p)
 	arm_memblock_init(&meminfo, mdesc);
 
 	paging_init(mdesc);
+
+#ifdef CONFIG_DUMP_PREV_OOPS_MSG
+	memblock_reserve(CONFIG_DUMP_PREV_OOPS_MSG_BUF_ADDR, CONFIG_DUMP_PREV_OOPS_MSG_BUF_LEN);
+#endif
+
 	request_standard_resources(mdesc);
 
 	if (mdesc->restart)

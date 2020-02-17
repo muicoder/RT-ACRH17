@@ -269,6 +269,7 @@ static unsigned long oops_begin(void)
 	int cpu;
 	unsigned long flags;
 
+	enable_oopsbuf(1);
 	oops_enter();
 
 	/* racy, but better than risking deadlock. */

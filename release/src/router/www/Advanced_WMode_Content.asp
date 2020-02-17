@@ -224,17 +224,13 @@ function applyRule(){
 		inputRCtrl2(document.form.wl_wdsapply_x, 1);
 	}
 	
-	if(document.form.wl_mode_x.value == "1"){
-		document.form.wl_wdsapply_x.value = "1";
-	}
-		
 	if(wl6_support){
 		document.form.action_wait.value = 8;
 	}
 	else{
 		document.form.action_wait.value = 3;
 	}
-		
+
 	showLoading();	
 	document.form.submit();
 }

@@ -65,6 +65,7 @@
 #include "pc.h"
 #endif
 
+
 #define IFUP (IFF_UP | IFF_RUNNING | IFF_BROADCAST | IFF_MULTICAST)
 
 #if LINUX_KERNEL_VERSION >= KERNEL_VERSION(3,2,0)
@@ -255,6 +256,8 @@ extern int ate_run_arpstrom(void);
 extern int setCentralLedLv(int lv);
 #endif
 extern int ate_get_fw_upgrade_state(void);
+extern void set_IpAddr_Lan(const char *);
+extern void get_IpAddr_Lan();
 
 /* tcode_rc.c */
 #ifdef RTCONFIG_TCODE
@@ -421,14 +424,16 @@ extern unsigned int get_conn_link_quality(int unit);
 #endif
 typedef unsigned int	u_int;
 extern u_int ieee80211_mhz2ieee(u_int freq);
-#if defined(RTCONFIG_WIFI_QCA9557_QCA9882) || defined(RTCONFIG_QCA953X) || defined(RTCONFIG_QCA956X)
+#if defined(RTCONFIG_WIFI_QCA9557_QCA9882) || defined(RTCONFIG_QCA953X) || defined(RTCONFIG_QCA956X) || defined(RTCONFIG_QCN550X)
 #ifdef RTCONFIG_ART2_BUILDIN
 extern void Set_ART2(void);
+#else
+extern void Set_ART2(const char *tftpd_ip);
 #endif
 extern void Get_EEPROM_X(char *command);
 extern void Get_CalCompare(void);
 #endif
-#if defined(RTCONFIG_WIFI_QCA9990_QCA9990) || defined(RTCONFIG_WIFI_QCA9994_QCA9994) || defined(RTCONFIG_SOC_IPQ40XX) || defined(RPAC51)
+#if defined(RTCONFIG_WIFI_QCA9990_QCA9990) || defined(RTCONFIG_WIFI_QCA9994_QCA9994) || defined(RTCONFIG_PCIE_AR9888) || defined(RTCONFIG_PCIE_QCA9888) || defined(RTCONFIG_SOC_IPQ40XX)
 extern void Set_Qcmbr(const char *value);
 extern void Get_BData_X(const char *command);
 extern int start_thermald(void);
@@ -614,6 +619,9 @@ extern int wait_to_forward_state(char *ifname);
 extern int hw_vht_cap();
 #endif
 extern int wl_control_channel(int unit);
+#ifdef RTCONFIG_DPSTA
+void set_dpsta_ifnames();
+#endif
 #endif
 
 #ifdef RTCONFIG_WIFI_SON
@@ -708,6 +716,9 @@ extern int stop_vlan(void);
 extern int config_vlan(void);
 extern void config_loopback(void);
 #ifdef RTCONFIG_IPV6
+extern int _ipv6_route_add(const char *name, int metric, const char *dst, const char *gateway, int flags);
+extern int ipv6_route_add(const char *name, int metric, const char *dst, const char *gateway);
+extern int ipv6_route_del(const char *name, int metric, const char *dst, const char *gateway);
 extern int ipv6_mapaddr4(struct in6_addr *addr6, int ip6len, struct in_addr *addr4, int ip4mask);
 #endif
 
@@ -799,7 +810,7 @@ extern pid_t pid_from_file(char *pidfile);
 extern int delay_main(int argc, char *argv[]);
 #ifdef RTCONFIG_IPV6
 extern void set_default_accept_ra(int flag);
-extern void set_intf_ipv6_accept_ra(const char *ifname, int flag);
+extern void set_default_accept_ra_defrtr(int flag);
 extern void set_intf_ipv6_dad(const char *ifname, int bridge, int flag);
 extern void config_ipv6(int enable, int incl_wan);
 #ifdef RTCONFIG_DUALWAN
@@ -907,6 +918,7 @@ extern void update_vpnc_state(char *prefix, int state, int reason);
 extern void rc_ipsec_config_init();
 extern void rc_set_ipsec_stack_block_size();
 extern void run_ipsec_firewall_scripts();
+extern void rc_ipsec_nvram_convert_check();
 #endif
 
 // network.c
@@ -1236,6 +1248,10 @@ extern int vpnc_set_dev_policy_rule();
 #endif
 #endif
 
+// ovpn.c
+extern int ovpn_up_main(int argc, char **argv);
+extern int ovpn_down_main(int argc, char **argv);
+
 // openvpn.c
 #ifdef RTCONFIG_OPENVPN
 extern void start_vpnclient(int clientNum);
@@ -1377,6 +1393,7 @@ extern void set_acs_ifnames();
 extern int stop_psta_monitor();
 extern int start_psta_monitor();
 #endif
+extern int wl_igs_enabled(void);
 #ifdef RTCONFIG_AMAS
 extern void stop_obd(void);
 extern void start_obd(void);

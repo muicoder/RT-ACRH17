@@ -49,12 +49,16 @@ static const struct model_s model_list[] = {
 	{ "RT-N10P_V3", MODEL_RTN11P_B1},
 	{ "RP-AC87", MODEL_RPAC87},	
 	{ "RT-AC85U", MODEL_RTAC85U},
+	{ "RT-AC85P", MODEL_RTAC85P},
+	{ "RT-ACRH26", MODEL_RTACRH26},
 	{ "RT-AC65U", MODEL_RTAC85U},
-    { "RT-N800HP",  MODEL_RTN800HP},
+	{ "RT-N800HP",  MODEL_RTN800HP},
 #elif defined(RTCONFIG_QCA)
 	{ "RT-AC55U",	MODEL_RTAC55U	},
 	{ "RT-AC55UHP",	MODEL_RTAC55UHP	},
 	{ "4G-AC55U",	MODEL_RT4GAC55U	},
+	{ "RT-N19",	MODEL_RTN19	},
+	{ "RT-AC59U",	MODEL_RTAC59U	},
 	{ "PL-N12",	MODEL_PLN12	},
 	{ "PL-AC56",	MODEL_PLAC56	},
 	{ "PL-AC66U",	MODEL_PLAC66U	},
@@ -85,9 +89,11 @@ static const struct model_s model_list[] = {
 	{ "RT-AC56S",	MODEL_RTAC56S	},
 	{ "RT-AC56U",	MODEL_RTAC56U	},
 	{ "RT-AC66U",	MODEL_RTAC66U	},
+#ifdef RT4GAC68U
+	{ "4G-AC68U",	MODEL_RTAC68U	},
+#endif
 	{ "RT-AC68U",	MODEL_RTAC68U	},
 	{ "RT-AC68A",	MODEL_RTAC68U	},
-	{ "4G-AC68U",	MODEL_RTAC68U	},
 	{ "RT-AC87U",	MODEL_RTAC87U	},
 	{ "RT-AC53U",	MODEL_RTAC53U	},
 	{ "RT-AC3200",	MODEL_RTAC3200	},
@@ -232,14 +238,6 @@ char *get_modelid(int model)
 {
 	char *pid = "unknown";
 	const struct model_s *p;
-
-#ifdef RT4GAC68U
-	pid = nvram_safe_get("productid");
-	if(!strcmp(pid, "4G-AC68U"))
-		return "4G-AC68U";
-	else
-		pid = "unknown";
-#endif
 
 	for (p = &model_list[0]; p->pid; ++p) {
 		if (model == p->model) {

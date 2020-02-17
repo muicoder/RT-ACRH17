@@ -1276,14 +1276,15 @@ int test_and_get_free_char_network(int t_class, char *ip_cidr_str, uint32_t excl
  * Return first/lowest configured and connected WAN unit.
  * @return:	WAN_UNIT_FIRST ~ WAN_UNIT_MAX
  */
-enum wan_unit_e get_first_configured_connected_wan_unit(void)
+enum wan_unit_e get_first_connected_public_wan_unit(void)
 {
 	int i, wan_unit = WAN_UNIT_MAX;
+	int wan_public = 0;
+	char wan_ip[sizeof("wanx_ipaddr")];
 	char prefix[sizeof("wanXXXXXX_")], link[sizeof("link_wanXXXXXX")];
 
 	for (i = WAN_UNIT_FIRST; i < WAN_UNIT_MAX; ++i) {
-		if (get_dualwan_by_unit(i) == WANS_DUALWAN_IF_NONE ||
-		    !is_wan_connect(i))
+		if (get_dualwan_by_unit(i) == WANS_DUALWAN_IF_NONE || !is_wan_connect(i))
 			continue;
 
 		/* If the WAN unit is configured as static IP, check link status too. */
@@ -1293,15 +1294,22 @@ enum wan_unit_e get_first_configured_connected_wan_unit(void)
 				strlcpy(link, "link_wan", sizeof(link));
 			else
 				snprintf(link, sizeof(link), "link_wan%d", i);
+
 			if (!nvram_get_int(link))
 				continue;
 		}
 
+		snprintf(wan_ip, sizeof(wan_ip), "wan%d_ipaddr", i);
+		wan_public = is_private_subnet(nvram_safe_get(wan_ip));
+		if(wan_public) // wan_public = 0 is public IP, wan_public = 1, 2, 3 is private IP.
+			continue;
 		wan_unit = i;
 		break;
 	}
-
-	return wan_unit;
+	if(WAN_UNIT_MAX == i)
+		return WAN_UNIT_NONE;
+	else
+		return wan_unit;
 }
 
 #ifdef RTCONFIG_IPV6
@@ -1465,8 +1473,7 @@ void reset_ipv6_linklocal_addr(const char *ifname, int flush)
 
 	memset(&ifr, 0, sizeof(ifr));
 	strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
-	mac = (ioctl(fd, SIOCGIFHWADDR, &ifr) < 0) ?
-		NULL : ifr.ifr_hwaddr.sa_data;
+	mac = (ioctl(fd, SIOCGIFHWADDR, &ifr) < 0) ? NULL : ifr.ifr_hwaddr.sa_data;
 	close(fd);
 
 	if (mac == NULL)
@@ -1482,8 +1489,10 @@ void reset_ipv6_linklocal_addr(const char *ifname, int flush)
 
 	if (flush)
 		eval("ip", "-6", "addr", "flush", "dev", (char *) ifname);
-	if (inet_ntop(AF_INET6, &addr, buf, sizeof(buf)))
-		eval("ip", "-6", "addr", "add", buf, "dev", (char *) ifname);
+	if (inet_ntop(AF_INET6, &addr, buf, sizeof(buf))) {
+		strlcat(buf, "/64", sizeof(buf));
+		eval("ip", "-6", "addr", "add", buf, "dev", (char *) ifname, "scope", "link");
+	}
 }
 
 int with_ipv6_linklocal_addr(const char *ifname)
@@ -1510,8 +1519,8 @@ const char *ipv6_gateway_address(void)
 	FILE *fp;
 	struct in6_addr addr;
 	char dest[41], nexthop[41], dev[17];
-	int mask, prefix, metric, flags;
-	int maxprefix, minmetric = minmetric;
+	int mask, prefix, maxprefix, flags;
+	unsigned int metric, minmetric = minmetric;
 
 	fp = fopen("/proc/net/ipv6_route", "r");
 	if (fp == NULL) {
@@ -1523,7 +1532,7 @@ const char *ipv6_gateway_address(void)
 	while (fscanf(fp, "%32s%x%*s%*x%32s%x%*x%*x%x%16s\n",
 		      &dest[7], &prefix, &nexthop[7], &metric, &flags, dev) == 6) {
 		/* Skip interfaces that are down and host routes */
-		if ((flags & (RTF_UP | RTF_HOST)) != RTF_UP)
+		if ((flags & (RTF_UP | RTF_HOST | RTF_REJECT)) != RTF_UP)
 			continue;
 
 		/* Skip dst not in "::/0 - 2000::/3" */
@@ -1545,7 +1554,7 @@ const char *ipv6_gateway_address(void)
 				continue;
 			inet_ntop(AF_INET6, &addr, buf, sizeof(buf));
 		} else
-			snprintf(buf, sizeof(buf), "::");
+			strlcpy(buf, "::", sizeof(buf));
 		maxprefix = prefix;
 		minmetric = metric;
 
@@ -1554,7 +1563,7 @@ const char *ipv6_gateway_address(void)
 	}
 	fclose(fp);
 
-	return *buf ? buf : NULL;
+	return (maxprefix < 0) ? NULL : buf;
 }
 #endif
 
@@ -1562,7 +1571,7 @@ int wl_client(int unit, int subunit)
 {
 	char *mode = nvram_safe_get(wl_nvname("mode", unit, subunit));
 
-	return ((strcmp(mode, "sta") == 0) || (strcmp(mode, "wet") == 0));
+	return ((strcmp(mode, "sta") == 0) || (strcmp(mode, "wet") == 0) || (strcmp(mode, "psta") == 0) || (strcmp(mode, "psr") == 0));
 }
 
 int foreach_wif(int include_vifs, void *param,
@@ -2149,6 +2158,19 @@ int nvram_set_double(const char *key, double value)
 	char nvramstr[33];
 
 	snprintf(nvramstr, sizeof(nvramstr), "%.9g", value);
+	return nvram_set(key, nvramstr);
+}
+
+int nvram_get_hex(const char *key)
+{
+	return strtol(nvram_safe_get(key), NULL, 16);
+}
+
+int nvram_set_hex(const char *key, int value)
+{
+	char nvramstr[16];
+
+	snprintf(nvramstr, sizeof(nvramstr), "%x", value);
 	return nvram_set(key, nvramstr);
 }
 
@@ -2756,7 +2778,7 @@ int is_dpsta(int unit)
 	char ifname[80], name[80], *next;
 	int idx = 0;
 
-	if (nvram_get_int("wlc_dpsta") == 1) {
+	if (dpsta_mode()) {
 		foreach (ifname, nvram_safe_get("wl_ifnames"), next) {
 			if (idx == unit) break;
 			idx++;
@@ -2771,16 +2793,6 @@ int is_dpsta(int unit)
 	return 0;
 }
 #endif
-
-int is_dpsr(int unit)
-{
-	if (nvram_get_int("wlc_dpsta") == 2) {
-		if ((num_of_wl_if() == 2) || !unit || unit == nvram_get_int("dpsta_band"))
-			return 1;
-	}
-
-	return 0;
-}
 
 int is_psta(int unit)
 {
@@ -2805,11 +2817,10 @@ int is_psr(int unit)
 #ifdef RTCONFIG_DPSTA
 		is_dpsta(unit) ||
 #endif
-		is_dpsr(unit) ||
 #if defined(RTCONFIG_AMAS) && defined(RTCONFIG_DPSTA)
 		dpsta_mode() ||
 #endif
-		((nvram_get_int("wlc_band") == unit) && !dpsr_mode()
+		((nvram_get_int("wlc_band") == unit)
 #ifdef RTCONFIG_DPSTA
 		&& !dpsta_mode()
 #endif
@@ -3702,12 +3713,9 @@ char *if_nametoalias(char *name, char *alias, int alias_len)
 
 			if (!strcmp(ifname, name)) {
 #if defined(CONFIG_BCMWL5) || defined(RTCONFIG_BCMARM)
-				if (nvram_get_int("sw_mode") == SW_MODE_REPEATER
-#ifdef RTCONFIG_PROXYSTA
-					|| dpsr_mode()
-#ifdef RTCONFIG_DPSTA
+				if (repeater_mode()
+#if defined(RTCONFIG_PROXYSTA) && defined(RTCONFIG_DPSTA)
 					|| dpsta_mode()
-#endif
 #endif
 					)
 					snprintf(alias, alias_len, "%s", unit ? (unit == 2 ? "5G1" : "5G") : "2G");
@@ -3888,4 +3896,160 @@ int IPTV_ports_cnt(void)
 	else
 		cnt = 2;
 	return cnt;
+}
+
+/*
+ * Validate a mac address
+ * @mac:	pointer to mac address.
+ * 	1:	Legal mac address
+ *  	0:	illegal mac address
+ */
+int isValidMacAddress(const char* mac) {
+	int i=0, s=0;
+
+	while (*mac) {
+		if (isxdigit(*mac))
+			i++;
+		else if (*mac == ':' || *mac == '-') {
+			if (i == 0 || i / 2 - 1 != s)
+				break;
+			++s;
+		}
+		else
+			s = -1;
+		++mac;
+	}
+	return (i == 12 && (s == 5 || s == 0));
+}
+
+/*
+ * Validate a option input
+ * @option:	pointer to  a option.
+    @range:	unsigned int range.
+ * 	1:	Legal input
+ *  	0:	illegal input
+ */
+int isValidEnableOption(const char *option, int range) {
+
+	int n=0;
+
+	if(!option || strlen(option)!=1)
+		return 0;
+
+	n = safe_atoi(option);
+
+	if(n >= 0 && n <=range)
+		return 1;
+	else
+		return 0;
+}
+
+/*
+ * Validate a string is digit
+ * @string:	pointer to  a string.
+ */
+int isValid_digit_string(const char *string) {
+
+	if (!string || !*string)
+		return 0;
+
+	while (*string)
+	{
+		if (!isdigit(*string))
+			return 0;
+		else
+			++string;
+	}
+	return 1;
+}
+
+int get_discovery_ssid(char *ssid_g, int size)
+{
+#if defined(RTCONFIG_WIRELESSREPEATER) || defined(RTCONFIG_PROXYSTA)
+	char tmp[100], prefix[] = "wlXXXXXXXXXXXXXX";
+#endif
+#ifdef RTCONFIG_DPSTA
+	char word[80], *next;
+	int unit, connected;
+#endif
+#ifdef RTCONFIG_WIRELESSREPEATER
+	if (sw_mode() == SW_MODE_REPEATER)
+	{
+#ifdef RTCONFIG_CONCURRENTREPEATER
+		if (nvram_get_int("wlc_band") < 0 || nvram_get_int("wlc_express") == 0)
+			snprintf(prefix, sizeof(prefix), "wl0.1_");
+		else if (nvram_get_int("wlc_express") == 1)
+			snprintf(prefix, sizeof(prefix), "wl1.1_");
+		else if (nvram_get_int("wlc_express") == 2)
+			snprintf(prefix, sizeof(prefix), "wl0.1_");
+		else
+#endif
+			snprintf(prefix, sizeof(prefix), "wl%d.1_", nvram_get_int("wlc_band"));
+		strlcpy(ssid_g, nvram_safe_get(strcat_r(prefix, "ssid", tmp)), size);
+	}
+	else
+#ifdef RTCONFIG_REALTEK
+		if (sw_mode() == SW_MODE_AP && nvram_get_int("wlc_psta") == 1)
+		{
+#ifdef RTCONFIG_CONCURRENTREPEATER
+			snprintf(prefix, sizeof(prefix), "wl0_");
+#else
+			snprintf(prefix, sizeof(prefix), "wl%d.1_", nvram_get_int("wlc_band"));
+#endif
+			strlcpy(ssid_g, nvram_safe_get(strcat_r(prefix, "ssid", tmp)), size);
+		}
+		else
+#endif
+#endif
+#ifdef RTCONFIG_BCMWL6
+#ifdef RTCONFIG_PROXYSTA
+#ifdef RTCONFIG_DPSTA
+		if (dpsta_mode() && nvram_get_int("re_mode") == 0)
+		{
+			connected = 0;
+			foreach(word, nvram_safe_get("dpsta_ifnames"), next) {
+				wl_ioctl(word, WLC_GET_INSTANCE, &unit, sizeof(unit));
+				snprintf(prefix, sizeof(prefix), "wlc%d_", unit == 0 ? 0 : 1);
+				if (nvram_get_int(strcat_r(prefix, "state", tmp)) == 2) {
+					connected = 1;
+					snprintf(prefix, sizeof(prefix), "wl%d.1_", unit);
+					strncpy(ssid_g, nvram_safe_get(strcat_r(prefix, "ssid", tmp)), size);
+					break;
+				}
+			}
+		if (!connected)
+			strlcpy(ssid_g, nvram_safe_get("wl0.1_ssid"), size);
+		}
+		else
+#endif
+		if (is_psta(nvram_get_int("wlc_band")))
+		{
+			snprintf(prefix, sizeof(prefix), "wl%d_", nvram_get_int("wlc_band"));
+			strncpy(ssid_g, nvram_safe_get(strcat_r(prefix, "ssid", tmp)), size);
+		}
+		else if (is_psr(nvram_get_int("wlc_band")))
+		{
+			snprintf(prefix, sizeof(prefix), "wl%d.1_", nvram_get_int("wlc_band"));
+			strlcpy(ssid_g, nvram_safe_get(strcat_r(prefix, "ssid", tmp)), size);
+		}
+		else
+#endif
+#endif
+	strlcpy(ssid_g, nvram_safe_get("wl0_ssid"), size);
+	return 0;
+}
+
+int get_chance_to_control(void)
+{
+	time_t now_t, login_ts, app_login_ts;
+
+	now_t = uptime();
+	login_ts = atol(nvram_safe_get("login_timestamp"));
+	app_login_ts = atol(nvram_safe_get("app_login_timestamp"));
+	if(((unsigned long)(login_ts) == 0 || (unsigned long)(now_t-login_ts) > 1800 || nvram_match("login_ip", ""))
+	&& ((unsigned long)(app_login_ts) == 0 || (unsigned long)(now_t-app_login_ts) > 1800 )) //check httpd from browser not in use
+	{
+		return 1;
+	}else
+		return 0;
 }

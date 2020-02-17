@@ -197,7 +197,7 @@ ifeq ($(or $(RTAC68A),$(RT4GAC68U)),y)
 CFLAGS += -DRTAC68U
 endif
 
-ifeq ($(or $(RTAC85U)),y)
+ifeq ($(or $(RTAC85U),$(RTAC85P),$(RTACRH26)),y)
 TARGET_MODEL = $(subst -,,$(subst +,P,$(BUILD_NAME)))
 CFLAGS += -D$(TARGET_MODEL)
 endif
@@ -350,6 +350,7 @@ ifeq ($(RTCONFIG_OPENVPN),y)
 CFLAGS += -DRTCONFIG_CROND
 CFLAGS += -I$(TOP)/libvpn
 LDFLAGS += -L$(TOP)/libvpn -lvpn
+OBJS += ovpn.o
 endif
 
 ifeq ($(RTCONFIG_IPSEC),y)
