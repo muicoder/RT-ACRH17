@@ -45,12 +45,10 @@ define platformRouterOptions
 	if [ "$(QCA)" = "y" ]; then \
 		sed -i "/RTCONFIG_QCA\>/d" $(1); \
 		echo "RTCONFIG_QCA=y" >>$(1); \
-		if [ "$(RTAC58U)" = "y" ] || [ "$(RTAC82U)" = "y" ] || [ "$(MAPAC1300)" = "y" ] || [ "$(MAPAC2200)" = "y" ] || [ "$(VZWAC1300)" = "y" ] || [ "$(MAPAC3000)" = "y" ]; then \
-			sed -i "/RTCONFIG_QCA_ARM/d" $(1); \
-			echo "RTCONFIG_QCA_ARM=y" >>$(1); \
-			sed -i "/RTCONFIG_32BYTES_ODMPID/d" $(1); \
-			echo "RTCONFIG_32BYTES_ODMPID=y" >>$(1); \
-		fi; \
+		sed -i "/RTCONFIG_QCA_ARM/d" $(1); \
+		echo "RTCONFIG_QCA_ARM=y" >>$(1); \
+		sed -i "/RTCONFIG_32BYTES_ODMPID/d" $(1); \
+		echo "RTCONFIG_32BYTES_ODMPID=y" >>$(1); \
 		if [ "$(RT4GAC53U)" = "y" ]; then \
 			sed -i "/RTCONFIG_LEDS_CLASS/d" $(1); \
 			echo "RTCONFIG_LEDS_CLASS=y" >>$(1); \
@@ -196,6 +194,7 @@ define platformKernelConfig
 			echo "# CONFIG_LEDS_BD2802 is not set" >>$(1); \
 			echo "# CONFIG_LEDS_LT3593 is not set" >>$(1); \
 			echo "# CONFIG_LEDS_TCA6507 is not set" >>$(1); \
+			echo "# CONFIG_LEDS_TLC591XX is not set" >>$(1); \
 			echo "# CONFIG_LEDS_LM355x is not set" >>$(1); \
 			echo "# CONFIG_LEDS_OT200 is not set" >>$(1); \
 			echo "# CONFIG_LEDS_BLINKM is not set" >>$(1); \
@@ -213,7 +212,7 @@ define platformKernelConfig
 			echo "CONFIG_MAPAC1300=y" >>$(1); \
 		fi; \
 		if [ "$(MAPAC2200)" = "y" ]; then \
-			sed -i "/CONFIG_MAPAC2200/d" $(1); \
+			sed -i "/CONFIG_MAPAC2200\b/d" $(1); \
 			echo "CONFIG_MAPAC2200=y" >>$(1); \
 		fi; \
 		if [ "$(VZWAC1300)" = "y" ]; then \
@@ -252,6 +251,7 @@ define platformKernelConfig
 			echo "# CONFIG_LEDS_BD2802 is not set" >>$(1); \
 			echo "# CONFIG_LEDS_LT3593 is not set" >>$(1); \
 			echo "# CONFIG_LEDS_TCA6507 is not set" >>$(1); \
+			echo "# CONFIG_LEDS_TLC591XX is not set" >>$(1); \
 			echo "# CONFIG_LEDS_LM355x is not set" >>$(1); \
 			echo "# CONFIG_LEDS_OT200 is not set" >>$(1); \
 			echo "# CONFIG_LEDS_BLINKM is not set" >>$(1); \

@@ -1188,6 +1188,13 @@ static inline int dpsr_mode()
 	return ((sw_mode() == SW_MODE_AP) && (nvram_get_int("wlc_dpsta") == 2));
 }
 
+#if defined(RTCONFIG_BCMWL6) && defined(RTCONFIG_PROXYSTA)
+static inline int psr_mode()
+{
+        return (sw_mode() == SW_MODE_AP && nvram_get_int("wlc_psta") == 2 && !nvram_get_int("wlc_dpsta"));
+}
+#endif
+
 static inline int get_wps_multiband(void)
 {
 #if defined(RTCONFIG_WPSMULTIBAND)
@@ -1574,6 +1581,10 @@ extern int discover_all(int wan_unit);
 // strings.c
 extern int char_to_ascii_safe(const char *output, const char *input, int outsize);
 extern void char_to_ascii(const char *output, const char *input);
+#if defined(RTCONFIG_UTF8_SSID)
+extern int char_to_ascii_safe_with_utf8(const char *output, const char *input, int outsize);
+extern void char_to_ascii_with_utf8(const char *output, const char *input);
+#endif
 extern int ascii_to_char_safe(const char *output, const char *input, int outsize);
 extern void ascii_to_char(const char *output, const char *input);
 extern const char *find_word(const char *buffer, const char *word);

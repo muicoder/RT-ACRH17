@@ -200,7 +200,7 @@ extern int g_wsc_configured;
 
 static unsigned int sigbones = 0;
 
-void *watch_sig(int signo) {
+void watch_sig(int signo) {
 	sigbones |= 1<<signo;
 }
 
@@ -3255,9 +3255,13 @@ void btn_check(void)
 #endif
 
 #if defined(RTCONFIG_QCA)
+#if defined(RTCONFIG_WIFI_CLONE)
 				if (nvram_match("wps_enrollee", "1"))
 					stop_wps_method();
+#elif defined(RTCONFIG_WPSMULTIBAND)
+				stop_wps_method();
 #endif
+#endif	/* RTCONFIG_QCA */
 #ifdef RTCONFIG_WIFI_CLONE
 				if (nvram_match("wps_e_success", "1")) {
 #if (defined(PLN12) || defined(PLAC56))
@@ -3766,14 +3770,10 @@ int need_restart_wsc = 0;
 
 static void catch_sig(int sig)
 {
-	static int dog_awake = 0;
-
 #if defined(RTCONFIG_ALPINE) || defined(RTCONFIG_LANTIQ)
 	dbG("watchdog: skip catch_sig(), sig=[%d]\n", sig);
 	return;
 #endif
-	if(dog_awake) return;
-	dog_awake = 1;
 
 	if (sig == SIGUSR1)
 	{
@@ -3836,7 +3836,6 @@ static void catch_sig(int sig)
 		need_restart_wsc = 1;
 	}
 #endif
-	dog_awake = 0;
 }
 
 
@@ -4323,10 +4322,6 @@ static int central_bh[10] = {0,1,2,3,3,3,3,3,2,1};
 
 void led_rush(int sig)
 {
-	static int dog_awake = 0;
-	if(dog_awake) return;
-	dog_awake = 1;
-
 	if(nvram_match("bc_ledbh", "reset"))
 		bh_case = CASE_INDICATOR_RESET;
 	else if(nvram_match("bc_ledbh", "wps"))
@@ -4344,16 +4339,10 @@ void led_rush(int sig)
 	led_alarm_rush = 1;
 	indicator_rush_counts = -1;
 	alarmtimer(0, RUSHURGENT_PERIOD);
-
-	dog_awake = 0;
 }
 
 void led_stop(int sig)
 {
-	static int dog_awake = 0;
-	if(dog_awake) return;
-	dog_awake = 1;
-
 	bh_case = CASE_NONE;
 	indicator_rush_counts = -1;
 
@@ -4368,7 +4357,6 @@ void led_stop(int sig)
 		led_alarm_rush = 0;
 		alarmtimer(NORMAL_PERIOD, 0);
 	}
-	dog_awake = 0;
 }
 
 void bluecave_ledbh_central()
@@ -4495,11 +4483,6 @@ void bluecave_ledbh_indicator()
 
 void led_check(int sig)
 {
-	static int dog_awake = 0;
-
-	if(dog_awake) return;
-	dog_awake = 1;
-
 #ifdef BLUECAVE
 	bluecave_ledbh_central();
 	bluecave_ledbh_indicator();
@@ -4516,13 +4499,13 @@ void led_check(int sig)
 		led_table_ctrl(LED_OFF);
 		swled_alloff_x++;
 		_dprintf("force turnoff led table again!\n");
-		goto ledchk_exit;
+		return;
 	}
 
 	if (all_led)
 		swled_alloff_x = 0;
 	else
-		goto ledchk_exit;
+		return;
 #endif
 
 	if (!confirm_led()) {
@@ -4614,9 +4597,6 @@ void led_check(int sig)
 		led_DSLWAN();
 #endif
 #endif
-
-ledchk_exit:
-	dog_awake = 0;
 }
 #endif
 
@@ -4811,6 +4791,25 @@ void init_sig_swled()
 #endif
 
 #if defined(RTAC1200G) || defined(RTAC1200GP)
+void wdg_heartbeat(int sig)
+{
+	if(factory_debug())
+		return;
+
+	if(sig == SIGUSR1) {
+		wdg_timer_alive++;
+	}
+	else if(sig == SIGALRM) {
+		if(wdg_timer_alive) {
+			wdg_timer_alive = 0;
+		}
+		else {
+			_dprintf("[%s] Watchdog's heartbeat is stop! Recover...\n", __FUNCTION__);
+			kill_pidfile_s("/var/run/watchdog.pid", SIGHUP);
+		}
+	}
+}
+
 void init_sig_wmon() 
 {
 	int sig;
@@ -5922,7 +5921,8 @@ static void bt_turn_off_service()
 #ifdef RTCONFIG_AMAS
 void amas_ctl_check()
 {
-	if (nvram_get_int("re_mode") == 1) {
+#ifdef RTCONFIG_DPSTA
+	if (dpsta_mode() && nvram_get_int("re_mode") == 1) {
 		if (!pids("amas_bhctrl"))
 			notify_rc("start_amas_bhctrl");
 		if (!pids("amas_wlcconnect"))
@@ -5930,6 +5930,7 @@ void amas_ctl_check()
 		if (!pids("amas_lanctrl"))
 			notify_rc("start_amas_lanctrl");
 	}
+#endif
 }
 
 void onboarding_check()
@@ -5939,8 +5940,10 @@ void onboarding_check()
 	if (!nvram_match("start_service_ready", "1"))
 		return;
 
-	if (!nvram_match("re_mode", "1"))
+#ifdef RTCONFIG_DPSTA
+	if (!(dpsta_mode() && nvram_get_int("re_mode") == 1))
 		return;
+#endif
 
 	if (strlen(nvram_safe_get("cfg_group")))
 		return;
@@ -6735,10 +6738,6 @@ void fan_check()
 
 void watchdog(int sig)
 {
-	static int dog_awake = 0;
-
-	if(dog_awake) return;
-	dog_awake = 1;
 #ifdef RTL_WTDOG
 	watchdog_func();
 #endif
@@ -6801,7 +6800,7 @@ void watchdog(int sig)
 
 	/* if timer is set to less than 1 sec, then bypass the following */
 	if (itv.it_value.tv_sec == 0)
-		goto wdg_exit;
+		return;
 
 #ifdef RTCONFIG_WIFI_SON
 	if (nvram_match("x_Setting", "1")) {
@@ -6915,7 +6914,7 @@ void watchdog(int sig)
 #endif
 
 	if (!nvram_match("asus_mfg", "0"))
-		goto wdg_exit;
+		return;
 
 	watchdog_period = (watchdog_period + 1) % 30;
 #ifdef WATCHDOG_PERIOD2
@@ -6943,14 +6942,14 @@ void watchdog(int sig)
 
 #ifdef BTN_SETUP
 	if (btn_pressed_setup >= BTNSETUP_START)
-		goto wdg_exit;
+		return;
 #endif
 
 #ifdef WATCHDOG_PERIOD2
 	if (watchdog_period2) {
 		if (!watchdog_period)
 			goto wdp;
-		goto wdg_exit;
+		return;
 	}
 #ifdef RTCONFIG_BONDING
 	nvram_set_int("bondst", (bs = get_bonding_status()));
@@ -6962,7 +6961,7 @@ void watchdog(int sig)
 #endif
 
 	if (watchdog_period)
-		goto wdg_exit;
+		return;
 
 #ifdef WATCHDOG_PERIOD2
 wdp:
@@ -6975,7 +6974,7 @@ wdp:
 	if (IS_ATE_FACTORY_MODE())
 #endif
 	{
-		goto wdg_exit;
+		return;
 	}
 
 #ifdef RTCONFIG_USER_LOW_RSSI
@@ -7061,9 +7060,6 @@ wdp:
 #ifdef RTCONFIG_TUNNEL
 	mastiff_check();
 #endif
-
-wdg_exit:
-	dog_awake = 0;
 }
 
 #if ! (defined(RTCONFIG_QCA) || defined(RTCONFIG_RALINK))
@@ -7073,27 +7069,6 @@ void watchdog02(int sig)
 	return;
 }
 #endif /* ! (RTCONFIG_QCA || RTCONFIG_RALINK) */
-
-#if defined(RTAC1200G) || defined(RTAC1200GP)
-void wdg_heartbeat(int sig)
-{
-	if(factory_debug())
-		return;
-
-	if(sig == SIGUSR1) {
-		wdg_timer_alive++;
-	}
-	else if(sig == SIGALRM) {
-		if(wdg_timer_alive) {
-			wdg_timer_alive = 0;
-		}
-		else {
-			_dprintf("[%s] Watchdog's heartbeat is stop! Recover...\n", __FUNCTION__);
-			kill_pidfile_s("/var/run/watchdog.pid", SIGHUP);
-		}
-	}
-}
-#endif
 
 int
 watchdog_main(int argc, char *argv[])
@@ -7148,9 +7123,6 @@ watchdog_main(int argc, char *argv[])
 		nvram_set(p->nv, "0");
 	}
 
-	if (!pids("ots"))
-		start_ots();
-
 	setenv("TZ", nvram_safe_get("time_zone_x"), 1);
 
 	_dprintf("TZ watchdog\n");
@@ -7166,9 +7138,9 @@ watchdog_main(int argc, char *argv[])
 	int watchsig_dbg = nvram_get_int("watchsig");
 	while (1)
 	{
-		if(sigbones)
+		while(sigbones)
 			put_all_dogs();
-
+		
 		pause();
 
 		if(watchsig_dbg) {
@@ -7239,7 +7211,7 @@ int sw_devled_main(int argc, char *argv[])
 
 	/* Most of time it goes to sleep */
 	while(1) {
-		if(sigbones)
+		while(sigbones)
 			put_all_dogs();
 		pause();
 	}
@@ -7262,7 +7234,7 @@ int wdg_monitor_main(int argc, char *argv[])
 	alarmtimer(WDG_MONITOR_PERIOD, 0);
 
 	while(1) {
-		if(sigbones)
+		while(sigbones)
 			put_all_dogs();
 		pause();
 	}

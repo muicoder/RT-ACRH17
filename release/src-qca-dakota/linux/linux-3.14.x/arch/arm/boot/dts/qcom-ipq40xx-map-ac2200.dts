@@ -177,19 +177,19 @@
 		};
 
 		edma@c080000 {
-			qcom,num_gmac = <3>;
+			qcom,num-gmac = <3>;
 			gmac0 {
-				qcom,poll_required = <0>;
-				qcom,poll_required_dynamic = <0>;
+				qcom,poll-required = <0>;
+				qcom,poll-required-dynamic = <0>;
 			};
 			gmac1 {
-				qcom,poll_required = <0>;
-				qcom,poll_required_dynamic = <0>;
+				qcom,poll-required = <0>;
+				qcom,poll-required-dynamic = <0>;
 			};
 			gmac2 {
-				qcom,poll_required = <0>;
-				qcom,poll_required_dynamic = <0>;
-				vlan_tag = <3 0x00>;
+				qcom,poll-required = <0>;
+				qcom,poll-required-dynamic = <0>;
+				vlan-tag = <3 0x00>;
 			};
 		};
 	};

@@ -640,6 +640,7 @@ var vpn_fusion_support = isSupport("vpn_fusion");
 var cfg_sync_support = isSupport("cfg_sync");
 var meoVoda_support = isSupport("meoVoda");
 var movistarTriple_support = isSupport("movistarTriple");
+var utf8_ssid_support = isSupport("utf8_ssid");
 
 var QISWIZARD = "QIS_wizard.htm";
 
@@ -751,6 +752,8 @@ var realip_support = isSupport("realip");
 var realip_state = "";
 var realip_ip = "";
 var external_ip = 0;
+
+var link_internet = '<% nvram_get("link_internet"); %>';
 
 if(lyra_hide_support){
 	var Android_app_link = "https://play.google.com/store/apps/details?id=com.asus.hive";
@@ -2491,6 +2494,8 @@ if((sw_mode == "2" && wlc_express == "0")|| sw_mode == "4"){
 		pap_flag = 1;
 	}
 }
+var wlifnames = '<% nvram_get("wl_ifnames"); %>'.split(" ");
+var dpsta_band = parseInt('<% nvram_get("dpsta_band"); %>');
 
 function refreshStatus(xhr){
 	if(xhr.responseText.search("Main_Login.asp") !== -1) top.location.href = "<% abs_index_page(); %>";
@@ -2733,7 +2738,7 @@ function refreshStatus(xhr){
 						this.hint = "<#Standby_str#>";
 						this.className = "_standby";
 					}
-					else{
+					else if(link_internet == "2"){
 						this.hint = "<#Connected#>";
 						this.className = "_connected";
 						this.hasInternet = true;
@@ -2892,8 +2897,34 @@ function refreshStatus(xhr){
 			}
 
 			if(concurrent_pap){
+				if (_wlc0_state == "wlc0_state=2") {
+					document.getElementById('speed_info_primary').style.display = "";
+					document.getElementById('rssi_info_primary').style.display = "";
+				} else {
+					document.getElementById('speed_info_primary').style.display = "none";
+					document.getElementById('rssi_info_primary').style.display = "none";
+				}
+
+				if (_wlc1_state == "wlc1_state=2") {
+					document.getElementById('speed_info_secondary').style.display = "";
+					document.getElementById('rssi_info_secondary').style.display = "";
+				} else {
+					document.getElementById('speed_info_secondary').style.display = "none";
+					document.getElementById('rssi_info_secondary').style.display = "none";
+				}
+
 				document.getElementById('speed_info_primary').innerHTML = "Link Rate: " + data_rate_info_2g;
-				document.getElementById('speed_info_secondary').innerHTML = "Link Rate: " + data_rate_info_5g;
+				if (!Rawifi_support && !Qcawifi_support && wlifnames.length == 3 && dpsta_band == 2)
+					document.getElementById('speed_info_secondary').innerHTML = "Link Rate: " + data_rate_info_5g_2;
+				else
+					document.getElementById('speed_info_secondary').innerHTML = "Link Rate: " + data_rate_info_5g;
+				if (!Rawifi_support && !Qcawifi_support) {
+					document.getElementById('rssi_info_primary').innerHTML = "RSSI: " + rssi_2g;
+					if (wlifnames.length == 3 && dpsta_band == 2)
+						document.getElementById('rssi_info_secondary').innerHTML = "RSSI: " + rssi_5g_2;
+					else
+						document.getElementById('rssi_info_secondary').innerHTML = "RSSI: " + rssi_5g;
+				}
 				if(_wlc0_state == "wlc0_state=2"){
 					document.getElementById('primary_line').className = "primary_wan_connected";				
 				}

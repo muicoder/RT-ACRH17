@@ -4292,7 +4292,11 @@ skip_init:
 
 
 		memset(ssid_str, 0, sizeof(ssid_str));
+#if defined(RTCONFIG_UTF8_SSID)
+		char_to_ascii_with_utf8(ssid_str, trim_r(ssid));
+#else
 		char_to_ascii(ssid_str, trim_r(ssid));
+#endif
 		
 		if(strlen(ssid)==0)
 			fprintf(ofp, "\"\",");
