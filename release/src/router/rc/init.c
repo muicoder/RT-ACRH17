@@ -98,9 +98,9 @@ static char *defenv[] = {
 	"HOME=/",
 	//"PATH=/usr/bin:/bin:/usr/sbin:/sbin",
 #ifdef RTCONFIG_LANTIQ
-	"PATH=/opt/usr/bin:/opt/bin:/opt/usr/sbin:/opt/sbin:/usr/bin:/bin:/usr/sbin:/sbin:/rom/opt/lantiq/bin:/rom/opt/lantiq/usr/sbin",
+	"PATH=/opt/usr/bin:/opt/bin:/opt/usr/sbin:/opt/sbin:/usr/bin:/bin:/usr/sbin:/sbin:/rom/opt/lantiq/bin:/rom/opt/lantiq/usr/sbin:/jffs/softcenter/bin:/jffs/softcenter/scripts",
 #else
-	"PATH=/opt/usr/bin:/opt/bin:/opt/usr/sbin:/opt/sbin:/usr/bin:/bin:/usr/sbin:/sbin",
+	"PATH=/opt/usr/bin:/opt/bin:/opt/usr/sbin:/opt/sbin:/usr/bin:/bin:/usr/sbin:/sbin:/jffs/softcenter/bin:/jffs/softcenter/scripts",
 #endif
 #ifdef HND_ROUTER
 	"LD_LIBRARY_PATH=/lib:/usr/lib:/lib/aarch64",
@@ -109,7 +109,10 @@ static char *defenv[] = {
 #endif
 #endif
 #ifdef RTCONFIG_LANTIQ
-	"LD_LIBRARY_PATH=/lib:/usr/lib:/opt/lantiq/usr/lib:/opt/lantiq/usr/sbin/:/tmp/wireless/lantiq/usr/lib/",
+	"LD_LIBRARY_PATH=/lib:/usr/lib:/opt/lantiq/usr/lib:/opt/lantiq/usr/sbin/:/tmp/wireless/lantiq/usr/lib/:/jffs/softcenter/lib",
+#endif
+#if (!defined(HND_ROUTER) && defined(RTCONFIG_BCMARM)) || defined(RTCONFIG_QCA) || defined(RTCONFIG_RALINK)
+	"LD_LIBRARY_PATH=/lib:/usr/lib:/jffs/softcenter/lib",
 #endif
 	"SHELL=" SHELL,
 	"USER=root",
@@ -833,7 +836,7 @@ restore_defaults_wifi(int all)
 	unsigned int max_mssid;
 	char prefix[]="wlXXXXXX_", tmp[100];
 
-#ifdef RTCONFIG_NEWSSID_REV2
+#if defined(RTCONFIG_NEWSSID_REV2) || defined(RTCONFIG_NEWSSID_REV4)
 	rev3 = 1;
 #endif
 	unit = 0;
@@ -1616,6 +1619,13 @@ misc_defaults(int restore_defaults)
 	nvram_unset("qtn_ready");
 #endif
 	nvram_set("mfp_ip_requeue", "");
+	nvram_unset("webs_state_update");
+	nvram_unset("webs_state_upgrade");
+	nvram_unset("webs_state_info");
+	nvram_unset("webs_state_REQinfo");
+	nvram_unset("webs_state_url");
+	nvram_unset("webs_state_flag");
+	nvram_unset("webs_state_error");
 #if defined(RTAC68U) || defined(RTCONFIG_FORCE_AUTO_UPGRADE)
 	nvram_set_int("auto_upgrade", 0);
 	nvram_unset("fw_check_period");
@@ -2941,8 +2951,11 @@ int init_nvram(void)
 	nvram_set("dsllog_vdslcurrentprofile", "");//VDSL current profile
 #endif
 
-#ifdef RTCONFIG_PUSH_EMAIL
+#ifdef RTCONFIG_FRS_FEEDBACK
 	nvram_set("fb_state", "");
+#endif
+#ifdef RTCONFIG_PUSH_EMAIL
+	nvram_set("PM_state", "");
 #endif
 	nvram_unset("usb_buildin");
 
@@ -3825,6 +3838,7 @@ int init_nvram(void)
 		nvram_set_int("btn_rst_gpio",  3|GPIO_ACTIVE_LOW);
 		nvram_set_int("btn_wps_gpio",  6|GPIO_ACTIVE_LOW);
 		nvram_set_int("led_pwr_gpio",  4|GPIO_ACTIVE_LOW);
+		nvram_set_int("led_wps_gpio",  4|GPIO_ACTIVE_LOW);
 		nvram_set_int("led_5g_gpio", 8|GPIO_ACTIVE_LOW);
 		nvram_set_int("led_2g_gpio", 10|GPIO_ACTIVE_LOW);
 //		nvram_set_int("led_all_gpio", 10|GPIO_ACTIVE_LOW);
@@ -4697,10 +4711,10 @@ int init_nvram(void)
 		nvram_set_int("led_2g_gpio", 15|GPIO_ACTIVE_LOW);
 		nvram_set_int("led_wps_gpio", 16|GPIO_ACTIVE_LOW);
 		nvram_set_int("led_pwr_gpio", 16|GPIO_ACTIVE_LOW);
-		nvram_set_int("led_wan_gpio", 4|GPIO_ACTIVE_LOW);
+		nvram_set_int("led_wan_gpio", 5|GPIO_ACTIVE_LOW);
 #ifdef RTCONFIG_LAN4WAN_LED
-		nvram_set_int("led_lan1_gpio", 3|GPIO_ACTIVE_LOW);
-		nvram_set_int("led_lan2_gpio", 2|GPIO_ACTIVE_LOW);
+		nvram_set_int("led_lan1_gpio", 4|GPIO_ACTIVE_LOW);
+		nvram_set_int("led_lan2_gpio", 3|GPIO_ACTIVE_LOW);
 #endif
 
 		/* enable bled */
@@ -4713,6 +4727,7 @@ int init_nvram(void)
 		add_rc_support("2.4G update");
 		add_rc_support("qcawifi");
 		add_rc_support("manual_stb");
+		add_rc_support("app");
 		// the following values is model dep. so move it from default.c to here
 		nvram_set("wl0_HT_TxStream", "4");
 		nvram_set("wl0_HT_RxStream", "4");
@@ -4753,6 +4768,8 @@ int init_nvram(void)
 		add_rc_support("switchctrl");
 		add_rc_support("manual_stb");
 		add_rc_support("11AC");
+		add_rc_support("nodm");
+		add_rc_support("app");
 		// the following values is model dep. so move it from default.c to here
 		nvram_set("wl0_HT_TxStream", "4");
 		nvram_set("wl0_HT_RxStream", "4");
@@ -4989,18 +5006,26 @@ int init_nvram(void)
 		wl_ifaces[WL_5G_BAND] = "ath1";
 		set_basic_ifname_vars("eth0", "eth1", wl_ifaces, "usb", "eth1", NULL, "eth2", NULL, 0);
 
-		nvram_set_int("btn_rst_gpio", 4|GPIO_ACTIVE_LOW);
-		nvram_set_int("btn_wps_gpio", 63|GPIO_ACTIVE_LOW);
-		nvram_set_int("led_usb_gpio", 0);
-		nvram_set_int("led_usb3_gpio", 0);
-		nvram_set_int("led_lan_gpio", 2);
-		nvram_set_int("led_wan_gpio", 1);
-		nvram_set_int("led_2g_gpio", 58);
+		if (check_mid("Hydra")) {
+			nvram_set_int("btn_rst_gpio", 1|GPIO_ACTIVE_LOW);
+			nvram_set_int("btn_wps_gpio", 63|GPIO_ACTIVE_LOW);
+			/* Hydra's MAC may not be multible of 4 */
+			nvram_set("wl0_vifnames", "wl0.1");
+			nvram_set("wl1_vifnames", "wl1.1");
+		} else {
+			nvram_set_int("btn_rst_gpio", 4|GPIO_ACTIVE_LOW);
+			nvram_set_int("btn_wps_gpio", 63|GPIO_ACTIVE_LOW);
+			nvram_set_int("led_usb_gpio", 0);
+			nvram_set_int("led_usb3_gpio", 0);
+			nvram_set_int("led_lan_gpio", 2);
+			nvram_set_int("led_wan_gpio", 1);
+			nvram_set_int("led_2g_gpio", 58);
 
-		nvram_set_int("led_5g_gpio", 5);
+			nvram_set_int("led_5g_gpio", 5);
 
-		nvram_set_int("led_wps_gpio", 3);
-		nvram_set_int("led_pwr_gpio", 3);
+			nvram_set_int("led_wps_gpio", 3);
+			nvram_set_int("led_pwr_gpio", 3);
+		}
 
 		/* Etron xhci host:
 		 *	USB2 bus: 1-1
@@ -5107,6 +5132,7 @@ int init_nvram(void)
 
 #if defined(RTAC82U)
 	case MODEL_RTAC82U:
+		merlinr_init();
 		nvram_set("boardflags", "0x100"); // although it is not used in ralink driver, set for vlan
 		//nvram_set("vlan1hwname", "et0");  // vlan. used to get "%smacaddr" for compare and find parent interface.
 		//nvram_set("vlan2hwname", "et0");  // vlan. used to get "%smacaddr" for compare and find parent interface.
@@ -8700,9 +8726,20 @@ int init_nvram(void)
 	add_rc_support("utf8_ssid");
 #endif
 
+#ifdef RTCONFIG_FRS_FEEDBACK
+	add_rc_support("frs_feedback");
+#ifdef RTCONFIG_DBLOG
+	add_rc_support("dblog");
+#endif /* RTCONFIG_DBLOG */
+#endif
+
 #ifdef RTCONFIG_USB
 #ifdef RTCONFIG_USB_PRINTER
 	add_rc_support("printer");
+#endif
+
+#ifdef RTCONFIG_PUSH_EMAIL
+	add_rc_support("email");
 #endif
 
 #ifdef RTCONFIG_USB_MODEM
@@ -8727,14 +8764,6 @@ int init_nvram(void)
 #ifdef RTCONFIG_MODEM_BRIDGE
 	add_rc_support("modembridge");
 #endif
-#endif
-
-#ifdef RTCONFIG_PUSH_EMAIL
-	add_rc_support("feedback");
-	add_rc_support("email");
-#ifdef RTCONFIG_DBLOG
-	add_rc_support("dblog");
-#endif /* RTCONFIG_DBLOG */
 #endif
 
 #ifdef RTCONFIG_WEBDAV
@@ -9320,6 +9349,7 @@ int init_nvram2(void)
 		nvram_set("lyra_disable_wifi_drv", "1");
 	nvram_unset("disableWifiDrv_fac");
 #endif
+	nvram_set("label_mac", get_label_mac());
 	return 0;
 }
 
@@ -9962,6 +9992,7 @@ static void sysinit(void)
 		"/tmp/etc/rc.d",
 #endif
 		"/tmp/var/tmp",
+		"/tmp/etc/dnsmasq.user",	// ssr and adbyby
 		NULL
 	};
 	umask(0);
@@ -10564,6 +10595,7 @@ int init_main(int argc, char *argv[])
 		extern void asm1042_upgrade(int);
 		asm1042_upgrade(1);	// check whether upgrade firmware of ASM1042
 #endif
+		run_custom_script("init-start", 0, NULL, NULL);
 
 		state = SIGUSR2;	/* START */
 
@@ -11103,6 +11135,24 @@ dbg("boot/continue fail= %d/%d\n", nvram_get_int("Ate_boot_fail"),nvram_get_int(
 			nvram_set("success_start_service", "1");
 			force_free_caches();
 #endif
+#if defined(K3)
+			k3_init_done();
+#elif defined(K3C)
+			k3c_init_done();
+#elif defined(SBRAC1900P)
+			ac1900p_init_done();
+#elif defined(SBRAC3200P)
+			ac3200p_init_done();
+#elif defined(R8000P) || defined(R7900P)
+			r8000p_init_done();
+#elif defined(RTAC68U) && !defined(SBRAC1900P)
+			ac68u_init_done();
+#elif defined(BLUECAVE) && !defined(K3C)
+			lantiq_init_done();
+#else
+			merlinr_init_done();
+#endif
+
 
 #ifdef RTCONFIG_AMAS
 			nvram_set("start_service_ready", "1");

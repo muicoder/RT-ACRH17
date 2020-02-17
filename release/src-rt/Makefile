@@ -60,12 +60,22 @@ export SRC_ROOT := $(SRCBASE)/../../src
 else
 export SRC_ROOT := $(SRCBASE)/../src
 endif
-export BUSYBOX := busybox-1.17.4
+export BUSYBOX := busybox
 export BUSYBOX_DIR := $(SRCBASE)/router/$(BUSYBOX)
 endif
 export SRCBASEDIR := $(shell pwd | sed 's/.*release\///g')
 RELEASEDIR := $(shell (cd $(SRC_ROOT)/.. && pwd -P))
 export PATH := $(RELEASEDIR)/tools:$(SRCBASE)/ctools:$(PATH)
+
+#K3C/K3/SBRAC1900P/SBRAC3200P/R7000/R8000/R7900P/R8000P
+export MERLINR_NAME := RTACRH17
+export MERLINR_VER_MAJOR :=B
+export MERLINR_VER_MINOR :=5.0.9
+export MERLINR_VER := $(MERLINR_VER_MAJOR)$(MERLINR_VER_MINOR)
+export MERLINRVER := $(MERLINR_NAME)_$(MERLINR_VER)
+ifeq ($(MERLINR_NAME),RTACRH17)
+export PATH := $(SRCBASE)/../../tools/openwrt-gcc463.arm/openwrt-gcc463.arm/bin:$(PATH)
+endif
 
 # tmp depend on busybox
 E2FSPROGS := $(if $(filter $(BUSYBOX),busybox-1.17.4),n,y)
@@ -105,11 +115,11 @@ EXSTRING="-$(EXTENDTYPE)"
 else
 EXSTRING=
 endif
-export EXTENDNO := $(shell expr $(EXTENDNO1) + $(RC_EXT_NO))-g$(shell git log --pretty=format:'%h' -n 1|sed -e "s,\([0-9a-z]\{7\}\)[0-9a-z]*,\1,")$(EXSTRING)
+export EXTENDNO := $(MERLINRVER)-g$(shell git log --pretty=format:'%h' -n 1|sed -e "s,\([0-9a-z]\{7\}\)[0-9a-z]*,\1,")$(EXSTRING)
 endif
 
 ifeq ($(EXTENDNO),)
-export EXTENDNO := 0-g$(shell git log --pretty=format:'%h' -n 1|sed -e "s,\([0-9a-z]\{7\}\)[0-9a-z]*,\1,")
+export EXTENDNO := $(MERLINRVER)-g$(shell git log --pretty=format:'%h' -n 1|sed -e "s,\([0-9a-z]\{7\}\)[0-9a-z]*,\1,")
 endif
 
 export SWPJNAME := $(shell git branch | grep "*" | grep "swpj-" | sed 's/.*swpj-//g')
@@ -127,7 +137,7 @@ export SWPJEXTENDNO := $(shell git describe --match swpj_$(SWPJNAME)_$(SWPJVERNO
 ifneq ($(SWPJEXTENDNO),)
 export EXTENDNO := $(SWPJEXTENDNO)
 else
-export EXTENDNO := 0-g$(shell git log --pretty=format:'%h' -n 1|sed -e "s,\([0-9a-z]\{7\}\)[0-9a-z]*,\1,")
+export EXTENDNO := $(MERLINRVER)-g$(shell git log --pretty=format:'%h' -n 1|sed -e "s,\([0-9a-z]\{7\}\)[0-9a-z]*,\1,")
 endif
 endif
 
@@ -175,6 +185,10 @@ endif
 export MODEL
 export CFLAGS += -D$(MODEL)
 export $(MODEL):=y
+export CFLAGS += -D$(MERLINR_NAME)
+export $(MERLINR_NAME)=y
+export CFLAGS += -DMERLINR_VER_MAJOR_$(MERLINR_VER_MAJOR)
+export MERLINR_VER_MAJOR_$(MERLINR_VER_MAJOR)=y
 endif
 
 EXTRA_KERNEL_YES_CONFIGS_1 := $(filter %=y %=Y,$(EXTRA_KERNEL_CONFIGS))
@@ -216,7 +230,8 @@ endif
 ifeq ($(FAKEID),y)
 export IMGNAME := $(BUILD_NAME)_$(KERNEL_VER).$(FS_VER)_$(FORCE_SN)_$(SWPJVER)$(FORCE_EN)
 else
-export IMGNAME := $(BUILD_NAME)_$(KERNEL_VER).$(FS_VER)_$(SERIALNO)_$(SWPJVER)$(EXTENDNO)
+#export IMGNAME := $(BUILD_NAME)_$(KERNEL_VER).$(FS_VER)_$(SERIALNO)_$(SWPJVER)$(EXTENDNO)
+export IMGNAME := $(EXTENDNO)
 endif
 
 ifeq ($(BUILD_NAME),DSL-AC68U)
@@ -1158,10 +1173,10 @@ define RouterOptions
 	if [ "$(NEWSSID_REV2)" = "y" ]; then \
 		sed -i "/RTCONFIG_NEWSSID_REV2/d" $(1); \
 		echo "RTCONFIG_NEWSSID_REV2=y" >>$(1); \
-		if [ "$(NEWSSID_REV4)" = "y" ]; then \
-			sed -i "/RTCONFIG_NEWSSID_REV4/d" $(1); \
-			echo "RTCONFIG_NEWSSID_REV4=y" >>$(1); \
-		fi; \
+	fi; \
+	if [ "$(NEWSSID_REV4)" = "y" ]; then \
+		sed -i "/RTCONFIG_NEWSSID_REV4/d" $(1); \
+		echo "RTCONFIG_NEWSSID_REV4=y" >>$(1); \
 	fi; \
 	if [ "$(NEW_APP_ARM)" = "y" ]; then \
 		sed -i "/RTCONFIG_NEW_APP_ARM/d" $(1); \
@@ -1341,6 +1356,12 @@ define RouterOptions
 	if [ "$(HW_DUALWAN)" = "y" ]; then \
 		sed -i "/RTCONFIG_HW_DUALWAN/d" $(1); \
 		echo "RTCONFIG_HW_DUALWAN=y" >>$(1); \
+	fi; \
+	if [ "$(FRS_FEEDBACK)" = "y" ]; then \
+		sed -i "/RTCONFIG_FRS_FEEDBACK/d" $(1); \
+		echo "RTCONFIG_FRS_FEEDBACK=y" >>$(1); \
+		sed -i "/RTCONFIG_HTTPS/d" $(1); \
+		echo "RTCONFIG_HTTPS=y" >>$(1); \
 	fi; \
 	if [ "$(EMAIL)" = "y" ]; then \
 		sed -i "/RTCONFIG_PUSH_EMAIL/d" $(1); \
@@ -2605,6 +2626,22 @@ define RouterOptions
 	if [ "$(WTF_REDEEM)" = "y" ]; then \
 		sed -i "/RTCONFIG_WTF_REDEEM/d" $(1); \
 		echo "RTCONFIG_WTF_REDEEM=y" >>$(1); \
+	fi; \
+	if [ "$(FRS_LIVE_UPDATE)" = "y" ]; then \
+		sed -i "/RTCONFIG_FRS_LIVE_UPDATE/d" $(1); \
+		echo "RTCONFIG_FRS_LIVE_UPDATE=y" >>$(1); \
+	fi; \
+	if [ "$(UUPLUGIN)" = "y" ]; then \
+		sed -i "/RTCONFIG_UUPLUGIN/d" $(1); \
+		echo "RTCONFIG_UUPLUGIN=y" >>$(1); \
+	fi; \
+	if [ "$(SOFTCENTER)" = "y" ]; then \
+	sed -i "/RTCONFIG_SOFTCENTER/d" $(1); \
+	echo "RTCONFIG_SOFTCENTER=y" >>$(1); \
+	fi; \
+	if [ "$(SMARTDNS)" = "y" ]; then \
+	sed -i "/RTCONFIG_SMARTDNS/d" $(1); \
+	echo "RTCONFIG_SMARTDNS=y" >>$(1); \
 	fi; \
 	)
 	$(call platformRouterOptions, $(1))
@@ -4084,7 +4121,11 @@ endif
 	@echo ""
 	@echo "Using $(N) profile, $(B) build config."
 	@echo ""
-
+ifeq ($(MERLINR_NAME),RTACRH17)
+	@if [ ! -d "$(SRCBASE)/../../tools/openwrt-gcc463.arm" ] ; then \
+		cd ${SRCBASE}/../../tools; tar -jxvf openwrt-gcc463.arm.tar.bz2 ;  \
+	fi
+endif
 	@cd $(LINUXDIR) ; \
 		rm -f config_current ; \
 		ln -s config_$(lowercase_B) config_current ; \
