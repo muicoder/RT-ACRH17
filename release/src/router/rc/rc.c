@@ -24,6 +24,20 @@
 #include <lp5523led.h>
 #endif
 
+#if defined(K3)
+#include "k3.h"
+#elif defined(R7900P) || defined(R8000P)
+#include "r7900p.h"
+#elif defined(K3C)
+#include "k3c.h"
+#elif defined(SBRAC1900P)
+#include "ac1900p.h"
+#elif defined(SBRAC3200P)
+#include "ac3200p.h"
+#else
+#include "merlinr.h"
+#endif
+
 #ifndef ARRAYSIZE
 #define ARRAYSIZE(a) (sizeof(a) / sizeof(a[0]))
 #endif /* ARRAYSIZE */
@@ -259,6 +273,11 @@ static int rctest_main(int argc, char *argv[])
 	else if (strcmp(argv[1], "rc_service")==0) {
 		notify_rc(argv[2]);
 	}
+#if defined(RTCONFIG_FRS_FEEDBACK)
+	else if (strcmp(argv[1], "sendfeedback")==0) {
+		start_sendfeedback();
+	}
+#endif
 #ifdef RTCONFIG_BCM_7114
 	else if (strcmp(argv[1], "spect")==0) {
 		start_dfs();
@@ -270,8 +289,23 @@ static int rctest_main(int argc, char *argv[])
 	}
 #endif
 	else if (strcmp(argv[1], "GetPhyStatus")==0) {
+#if defined(R7900P) || defined(R8000P)
+		printf("Get Phy status:%d\n", GetPhyStatus2(0));
+#elif defined(K3)
+		printf("Get Phy status:%d\n", GetPhyStatusk3(0));
+#else
 		printf("Get Phy status:%d\n", GetPhyStatus(0));
+#endif
 	}
+#if defined(K3) || defined(R7900P) || defined(R8000P)
+	else if (strcmp(argv[1], "Get_PhyStatus")==0) {
+#if defined(K3)
+		GetPhyStatusk3(1);
+#elif defined(R7900P) || defined(R8000P)
+		 GetPhyStatus2(1);
+#endif
+	}
+#endif
 	else if (strcmp(argv[1], "GetExtPhyStatus")==0) {
 		printf("Get Ext Phy status:%d\n", GetPhyStatus(atoi(argv[2])));
 	}
@@ -324,12 +358,14 @@ static int rctest_main(int argc, char *argv[])
 		sscanf(argv[3], "%x", &ctrl);
 		_dprintf("phy_ctrl 0x%x/%x (%d)\n", mask, ctrl, set_phy_ctrl(mask, ctrl));
 	}
+#if defined(RTCONFIG_EXT_BCM53134)
 	else if (strcmp(argv[1], "set_ex53134_ctrl")==0) {
 		unsigned int mask, ctrl;
 		sscanf(argv[2], "%x", &mask);
 		sscanf(argv[3], "%x", &ctrl);
 		_dprintf("ex53134 phy_ctrl 0x%x/%x (%d)\n", mask, ctrl, set_ex53134_ctrl(mask, ctrl));
 	}
+#endif
 #endif
 	else if (strcmp(argv[1], "lanports_ctrl")==0) {
 		int val;
@@ -420,7 +456,7 @@ static int rctest_main(int argc, char *argv[])
 			else stop_psta_monitor();
 		}
 #endif
-#if defined(RTCONFIG_AMAS) && (defined(RTCONFIG_BCMWL6) || defined(RTCONFIG_LANTIQ))
+#if defined(RTCONFIG_AMAS) && (defined(RTCONFIG_BCMWL6) || defined(RTCONFIG_LANTIQ) || defined(RTCONFIG_QCA))
 		else if (strcmp(argv[1], "obd") == 0) {
 			if (on) start_obd();
 			else stop_obd();
@@ -525,6 +561,11 @@ static int rctest_main(int argc, char *argv[])
 		else if (strcmp(argv[1], "gpior") == 0) {
 			printf("%d\n", get_gpio(atoi(argv[2])));
 		}
+#if defined(RTCONFIG_HND_ROUTER_AX_6710) || defined(RTAX58U) || defined(TUFAX3000) || defined(RTAX82U)
+		else if (strcmp(argv[1], "gpio2r") == 0) {
+			printf("%d\n", get_gpio2(atoi(argv[2])));
+		}
+#endif
 #ifndef HND_ROUTER
 		else if (strcmp(argv[1], "gpiod") == 0) {
 			if (argc>=4) gpio_dir(atoi(argv[2]), atoi(argv[3]));
@@ -561,6 +602,21 @@ static int rctest_main(int argc, char *argv[])
 		}
 		else if (strcmp(argv[1], "fa_dump") == 0) {
 			_dprintf("(%d) done.\n", get_fa_dump());
+		}
+#endif
+#ifdef RTCONFIG_ASUSCTRL
+		else if (strcmp(argv[1], "asusctrl") == 0) {
+			printf("ignore=%d, en=%d, flag=(0x%x)\n", asus_ctrl_ignore(), asus_ctrl_en(atoi(argv[2])), nvram_get_hex("asusctrl_flags"));
+		}
+#endif
+#ifdef RTCONFIG_BROOP
+		else if (strcmp(argv[1], "broop") == 0) {
+			int i, dtime = atoi(argv[2])?:10;
+
+			for(i=0; i<dtime; ++i) {
+				sleep(1);
+				_dprintf("detect broop:%d (%d)\n", detect_broop(), i);
+			}
 		}
 #endif
 		else {
@@ -749,6 +805,9 @@ static const applets_t applets[] = {
 #endif
 #endif
 	{ "watchdog",			watchdog_main			},
+#ifdef RTCONFIG_CONNTRACK
+	{ "pctime",                     pctime_main                     },
+#endif
 #if ! (defined(RTCONFIG_QCA) || defined(RTCONFIG_RALINK))
 	{ "watchdog02",			watchdog02_main			},
 #endif  /* ! (RTCONFIG_QCA || RTCONFIG_RALINK) */
@@ -764,8 +823,17 @@ static const applets_t applets[] = {
 #if defined(RTCONFIG_BCMWL6) && defined(RTCONFIG_PROXYSTA)
 	{ "psta_monitor",		psta_monitor_main		},
 #endif
-#if defined(RTCONFIG_AMAS) && (defined(RTCONFIG_BCMWL6) || defined(RTCONFIG_LANTIQ)) && !defined(RTCONFIG_DISABLE_REPEATER_UI)
-	{ "obd",			obd_main			},
+#if defined(RTCONFIG_AMAS) && (defined(RTCONFIG_BCMWL6) || defined(RTCONFIG_LANTIQ) || defined(RTCONFIG_QCA)) && !defined(RTCONFIG_DISABLE_REPEATER_UI)
+	{ "obd",			obd_main					},
+#endif
+#if defined(RTCONFIG_AMAS) && defined(RTCONFIG_ETHOBD)
+	{ "obd_eth",		obdeth_main					},
+	{ "obd_monitor",	obd_monitor_main			},
+#endif
+#if defined(RTCONFIG_AMAS) && defined(RTCONFIG_CFGSYNC)
+#if defined(RTCONFIG_HND_ROUTER_AX)
+	{ "rmd",			rmd_main			},
+#endif
 #endif
 #ifdef RTCONFIG_IPERF
 	{ "monitor",			monitor_main			},
@@ -780,6 +848,7 @@ static const applets_t applets[] = {
 	{ "usbled",			usbled_main			},
 #endif
 	{ "ddns_updated", 		ddns_updated_main		},
+	{ "ddns_custom_updated",	ddns_custom_updated_main	},
 	{ "radio",			radio_main			},
 	{ "udhcpc",			udhcpc_wan			},
 	{ "udhcpc_lan",			udhcpc_lan			},
@@ -842,6 +911,13 @@ static const applets_t applets[] = {
 	{ "disk_remove",		diskremove_main			},
 #endif
 	{ "firmware_check",		firmware_check_main		},
+#if defined(RTCONFIG_FRS_LIVE_UPDATE)
+#if defined(MERLINR_VER_MAJOR_B) || defined(MERLINR_VER_MAJOR_R) || defined(MERLINR_VER_MAJOR_X)
+	{ "firmware_check_update",	merlinr_firmware_check_update_main	},
+#else
+	{ "firmware_check_update",	firmware_check_update_main	},
+#endif
+#endif
 #ifdef BUILD_READMEM
 	{ "readmem",			readmem_main			},
 #endif
@@ -869,8 +945,8 @@ static const applets_t applets[] = {
 #endif
 #endif
 #endif
-#ifdef RTCONFIG_TR069
-	{ "dhcpc_lease",		dhcpc_lease_main		},
+#if defined(RTCONFIG_TR069) || defined(RTAC3200) || defined(RTCONFIG_QCA)
+	{ "dhcpc_lease",		dnsmasq_script_main		},
 #endif
 #ifdef RTCONFIG_NEW_USER_LOW_RSSI
 	{ "roamast",			roam_assistant_main		},
@@ -1621,6 +1697,12 @@ int main(int argc, char **argv)
 		_start_telnetd(1);
 		return 0;
 	}
+#if defined(K3)
+	else if(!strcmp(base, "k3screen")) {
+		start_k3screen();
+		return 0;
+	}
+#endif
 #ifdef RTCONFIG_SSH
 	else if (!strcmp(base, "run_sshd")) {
 		start_sshd();
@@ -1650,6 +1732,12 @@ int main(int argc, char **argv)
 	}
 	else if (!strcmp(base, "pc_tmp")) {
 		pc_tmp_main(argc, argv);
+		return 0;
+	}
+#endif
+#ifdef RTCONFIG_INTERNETCTRL
+	else if (!strcmp(base, "ic")) {
+		ic_main(argc, argv);
 		return 0;
 	}
 #endif
@@ -1961,3 +2049,4 @@ int main(int argc, char **argv)
 	printf("Unknown applet: %s\n", base);
 	return 0;
 }
+
